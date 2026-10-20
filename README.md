@@ -17,10 +17,10 @@ The simulator models a unity-feedback closed-loop control system where a PID con
 ```mermaid
 graph LR
     R["Reference r(t)"] --> Sum((+ / -))
-    Sum -->|Error e(t)| C["PID Controller C(s)"]
-    C -->|Control u(t)| G["Plant G(s)"]
+    Sum -->|"Error e(t)"| C["PID Controller C(s)"]
+    C -->|"Control u(t)"| G["Plant G(s)"]
     G --> Y["Output y(t)"]
-    Y -->|Unity Feedback| Sum
+    Y -->|"Unity Feedback"| Sum
 ```
 
 ### Mathematical Formulation
