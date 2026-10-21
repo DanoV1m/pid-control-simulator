@@ -6,7 +6,7 @@
 
 A professional, high-end web-based engineering dashboard designed to analyze Linear Time-Invariant (LTI) systems and tune **Closed-Loop PID Controllers** in real time across the time domain, frequency domain, and complex $s$-plane.
 
-🚀 **[Launch Live Interactive Simulator](https://idan-pid-simulator.streamlit.app/)**
+**[Launch Live Interactive Simulator](https://idan-pid-simulator.streamlit.app/)**
 
 ---
 
@@ -39,7 +39,7 @@ graph LR
 
 * **High-End Glassmorphism & Avionics Dark Aesthetic:** Sleek dark dashboard (`#0A0E17` obsidian base) engineered with modern typography (`Inter` for UI clarity and `JetBrains Mono` for numeric precision).
 * **Glassmorphic Closed-Loop Performance Metrics:** Responsive KPI cards with dynamic status badges:
-  * **BIBO Stability:** Dynamic indicator with pulsing live radar (🟢 Stable / 🔴 Unstable).
+  * **BIBO Stability:** Dynamic indicator with pulsing live radar (Stable / Unstable).
   * **Rise Time ($t_r$, 10%–90%):** Monospace precision readout of transient response speed.
   * **Settling Time ($t_s$, $\pm 2\%$):** Tolerance envelope settling duration.
   * **Peak Overshoot ($M_p\%$):** Adaptive threshold color tags (Optimal $\le 5\%$, Moderate $\le 20\%$, High $> 20\%$).

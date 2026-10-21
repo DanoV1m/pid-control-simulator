@@ -34,7 +34,7 @@ TRANSLATIONS = {
         "section_sim": "03 // SIMULATION CONFIGURATION",
         "t_final_label": "Simulation Horizon [seconds]",
         "show_ol_label": "Overlay Open-Loop G(s) Benchmark",
-        "diagram_expander": "📐 System Architecture & Control Loop Block Diagram",
+        "diagram_expander": "System Architecture & Control Loop Block Diagram",
         "err_invalid_coeffs": "Input Error: Please provide valid comma-separated numerical coefficients.",
         "err_improper": "Improper System: The degree of the numerator cannot exceed the degree of the denominator.",
         "eq_plant": "PLANT DYNAMICS G(s)",
@@ -43,11 +43,11 @@ TRANSLATIONS = {
         "metrics_title": "Closed-Loop Dynamic Performance (Time Domain)",
         "unstable_banner": "CRITICAL STABILITY WARNING: Closed-loop poles reside in the Right-Half Plane (RHP). System diverges asymptotically!",
         "open_loop_expander": "Compare with Open-Loop Plant Performance",
-        "tab_step": "📈 Step Response (Time Domain)",
-        "tab_pz": "🎯 s-Plane Pole-Zero Map",
-        "tab_bode": "🌊 Frequency Response (Bode Plot)",
-        "tab_poles": "🔬 Pole Telemetry & Damping Analysis",
-        "download_csv": "📥 Export Simulation Dataset (CSV for MATLAB / Python)",
+        "tab_step": "Step Response (Time Domain)",
+        "tab_pz": "s-Plane Pole-Zero Map",
+        "tab_bode": "Frequency Response (Bode Plot)",
+        "tab_poles": "Pole Telemetry & Damping Analysis",
+        "download_csv": "Export Simulation Dataset (CSV for MATLAB / Python)",
         "pz_caption": "BIBO Stability Criterion: All closed-loop poles (×) must reside strictly in the Left-Half Plane (Re(s) < 0, left of the red threshold line).",
         "bode_caption": "Bode Diagram displays frequency response magnitude and phase for stability margins (Gain Margin GM & Phase Margin PM) and bandwidth evaluation.",
         "status_stable": "BIBO STABLE",
@@ -84,7 +84,7 @@ TRANSLATIONS = {
         "section_sim": "03 // פרמטרי סימולציה",
         "t_final_label": "אופק זמן לסימולציה [שניות]",
         "show_ol_label": "הצג השוואה למערכת בחוג פתוח G(s)",
-        "diagram_expander": "📐 דיאגרמת בלוקים של חוג הבקרה הסגור",
+        "diagram_expander": "דיאגרמת בלוקים של חוג הבקרה הסגור",
         "err_invalid_coeffs": "שגיאה בקלט: אנא הזן מקדמים מספריים חוקיים מופרדים בפסיקים.",
         "err_improper": "מערכת לא סיבתית (Improper TF): דרגת המונה חייבת להיות קטנה או שווה לדרגת המכנה.",
         "eq_plant": "פונקציית התעבורה בחוג פתוח G(s)",
@@ -93,11 +93,11 @@ TRANSLATIONS = {
         "metrics_title": "מדדי ביצועים דינמיים בחוג סגור (Closed-Loop)",
         "unstable_banner": "אזהרת יציבות קריטית: לחוג הסגור יש קטבים בחצי המישור הימני (RHP) – המערכת מתבדרת אסימפטוטית!",
         "open_loop_expander": "הצג השוואה למדדי המערכת בחוג פתוח (Open-Loop)",
-        "tab_step": "📈 תגובת מדרגה (Step Response)",
-        "tab_pz": "🎯 מפת קטבים ואפסים (s-Plane)",
-        "tab_bode": "🌊 תגובת תדר (Bode Plot)",
-        "tab_poles": "🔬 טלמטריה מפורטת של קטבי המערכת",
-        "download_csv": "📥 הורד נתוני סימולציה לקובץ CSV (עבור MATLAB / Excel)",
+        "tab_step": "תגובת מדרגה (Step Response)",
+        "tab_pz": "מפת קטבים ואפסים (s-Plane)",
+        "tab_bode": "תגובת תדר (Bode Plot)",
+        "tab_poles": "טלמטריה מפורטת של קטבי המערכת",
+        "download_csv": "הורד נתוני סימולציה לקובץ CSV (עבור MATLAB / Excel)",
         "pz_caption": "תנאי הכרחי ומספיק ליציבות BIBO: כל קטבי החוג הסגור (×) חייבים להימצא בחצי המישור השמאלי (Re(s) < 0, משמאל לקו האדום).",
         "bode_caption": "דיאגרמת בודה מציגה הגבר ומופע בתדר לבחינת שולי יציבות (Gain Margin ו-Phase Margin) ורוחב פס.",
         "status_stable": "יציבה (BIBO)",
@@ -313,17 +313,17 @@ def analyze_poles(poles: np.ndarray) -> List[Dict]:
         zeta = float(-sigma / wn) if wn > 1e-9 else 0.0
 
         if sigma > 1e-6:
-            classification = "🔴 Unstable (RHP)"
+            classification = "Unstable (RHP)"
         elif abs(sigma) <= 1e-6:
-            classification = "🟡 Marginally Stable (Imag Axis)"
+            classification = "Marginally Stable (Imag Axis)"
         elif abs(omega_d) < 1e-6:
-            classification = "🟢 Real Non-oscillatory"
+            classification = "Real Non-oscillatory"
         elif zeta < 1.0:
-            classification = f"🔵 Underdamped (ζ = {zeta:.3f})"
+            classification = f"Underdamped (ζ = {zeta:.3f})"
         elif abs(zeta - 1.0) < 1e-3:
-            classification = "🟣 Critically Damped"
+            classification = "Critically Damped"
         else:
-            classification = "⚪ Overdamped"
+            classification = "Overdamped"
 
         results.append({
             "Index": f"p_{i+1}",
@@ -1298,7 +1298,6 @@ def render_block_diagram_svg() -> None:
 def main():
     st.set_page_config(
         page_title="Control Systems & PID Simulator | SaaS Dashboard",
-        page_icon="🎛️",
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -1311,7 +1310,7 @@ def main():
         st.markdown(
             """
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
-                <span style="font-size: 1.8rem;">🎛️</span>
+                <div style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, rgba(0, 210, 255, 0.25) 0%, rgba(59, 130, 246, 0.25) 100%); border: 1px solid rgba(0, 210, 255, 0.45); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #00D2FF; font-family: 'JetBrains Mono', monospace;">CS</div>
                 <div>
                     <div style="font-weight: 800; font-size: 1.15rem; color: #F8FAFC; letter-spacing: -0.01em;">CONTROL DESK</div>
                     <div style="font-size: 0.7rem; color: #00D2FF; font-family: 'JetBrains Mono';">AUTONOMOUS LTI ENGINE</div>
@@ -1323,7 +1322,7 @@ def main():
 
         # Language Selector
         lang_choice = st.radio(
-            "🌐 Interface Language / שפה",
+            "Interface Language / שפה",
             options=["English", "עברית"],
             index=0,
             horizontal=True
@@ -1492,7 +1491,7 @@ def main():
     st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
 
     # --- GLASSMORPHISM METRICS DASHBOARD ---
-    st.markdown(f"### 📊 {t_dict['metrics_title']}")
+    st.markdown(f"### {t_dict['metrics_title']}")
     if not cl_metrics["stable"]:
         st.error(t_dict["unstable_banner"])
 
@@ -1532,7 +1531,7 @@ def main():
         st.caption(t_dict["bode_caption"])
 
     with tab4:
-        st.markdown("#### 🔬 Closed-Loop Pole Eigenvalue & Damping Decomposition")
+        st.markdown("#### Closed-Loop Pole Eigenvalue & Damping Decomposition")
         pole_data = analyze_poles(cl_poles)
         df_poles = pd.DataFrame(pole_data)
         st.dataframe(df_poles, use_container_width=True, hide_index=True)
