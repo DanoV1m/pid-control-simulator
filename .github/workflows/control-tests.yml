@@ -26,6 +26,19 @@ jobs:
           python --version
           python -m pip check
           python -m pip freeze
+          python - <<'PY'
+          from importlib.metadata import version
+          from pathlib import Path
+          from packaging.requirements import Requirement
+          import sys
+          assert sys.version_info[:2] in ((3, 11), (3, 14))
+          pins = [Requirement(line) for line in Path('requirements.txt').read_text().splitlines() if line.strip() and not line.lstrip().startswith('#')]
+          active = [r for r in pins if r.marker is None or r.marker.evaluate()]
+          assert len(active) == 36, len(active)
+          for r in active:
+              assert version(r.name) in r.specifier, (r.name, version(r.name), str(r.specifier))
+          print('All 36 active dependency pins verified')
+          PY
           python -c "import streamlit, numpy, scipy, pandas, plotly; print('All five direct dependencies imported successfully')"
       - name: Numerical regression tests
         run: python -m unittest discover -s tests -v
@@ -36,7 +49,8 @@ jobs:
       - name: Install browser test tooling
         if: matrix.python-version == '3.14'
         run: |
-          python -m pip install playwright
+          python -m pip install playwright==1.65.2 greenlet==3.5.6
+          python -m pip check
           python -m playwright install --with-deps chromium
       - name: Verify rendered HTML and SVG in Chromium
         if: matrix.python-version == '3.14'

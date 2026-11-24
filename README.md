@@ -1,6 +1,6 @@
 # Precision Control Systems & PID Simulator
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![SciPy](https://img.shields.io/badge/SciPy-Control%20Systems-orange.svg)](https://scipy.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-Live%20App-00D2FF.svg)](https://idan-pid-simulator.streamlit.app/)
 
@@ -53,6 +53,8 @@ graph LR
 ---
 
 ## Running Locally
+
+Use Python 3.11 or 3.14 in a clean virtual environment. The application requirements pin the Linux CI-tested package versions; other Python versions are not supported by this snapshot.
 
 ```bash
 git clone https://github.com/DanoV1m/pid-control-simulator.git
