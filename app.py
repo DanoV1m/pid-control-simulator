@@ -1268,12 +1268,17 @@ def main():
     except ValueError as exc:
         st.error(str(exc))
         st.stop()
-    cl_sys = signal.TransferFunction(cl_num, cl_den)
-    l_sys = signal.TransferFunction(l_num, l_den)
-
-    t_axis = np.linspace(0, t_final, 1400)
-    t_ol, y_ol = signal.step(ol_sys, T=t_axis)
-    t_cl, y_cl = signal.step(cl_sys, T=t_axis)
+    try:
+        cl_sys = signal.TransferFunction(cl_num, cl_den)
+        l_sys = signal.TransferFunction(l_num, l_den)
+        t_axis = np.linspace(0, t_final, 1400)
+        t_ol, y_ol = signal.step(ol_sys, T=t_axis)
+        t_cl, y_cl = signal.step(cl_sys, T=t_axis)
+        if not np.all(np.isfinite(y_ol)) or not np.all(np.isfinite(y_cl)):
+            raise ValueError("Response exceeds numerical range")
+    except (ValueError, ArithmeticError, np.linalg.LinAlgError) as exc:
+        st.error(f"Simulation unavailable: {exc}")
+        st.stop()
 
     ol_poles = np.roots(den)
     ol_zeros = np.roots(num) if len(num) > 1 else np.array([])
