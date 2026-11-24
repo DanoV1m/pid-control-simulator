@@ -13,3 +13,6 @@ Gain and phase crossings now use logarithmic-frequency interpolation on 10^-3 to
 
 ## UI regression
 CI installs the full application requirements and runs Streamlit AppTest for all seven default analysis tabs, switching controller mode and rejecting an invalid denominator. This exercises Python UI execution, not visual browser rendering.
+
+## Python runtime compatibility
+The CI matrix checks Python 3.11 and 3.14 independently with fail-fast disabled. Each job installs binary wheels for the full application requirements, checks dependency consistency and imports, records resolved versions, compiles the application and executes numerical and Streamlit AppTest regressions. Binary-only installation deliberately rejects dependencies requiring a source build in this Linux CI environment. Requirements remain lower-bound constraints rather than a reproducible lockfile. A successful matrix validates the versions resolved in that run; it does not guarantee identical resolution on a future Streamlit Community Cloud deployment or validate an actual browser session. No CI step deploys the application.
