@@ -1,3 +1,4 @@
+import base64
 import streamlit as st
 import numpy as np
 from scipy import signal
@@ -557,7 +558,7 @@ html, body, [class*="css"] {
     text-align: center;
     overflow-x: auto;
 }
-.block-diagram-container svg {
+.block-diagram-container .control-loop-image {
     display: block;
     width: 100%;
     min-width: 480px;
@@ -1088,8 +1089,7 @@ def render_glass_metric_cards(metrics: Dict[str, Optional[float]], lang: str = "
 def render_block_diagram_svg() -> None:
     """Renders a clean SVG control loop block diagram."""
     svg_code = """
-    <div class="block-diagram-container">
-        <svg viewBox="0 0 740 120" width="100%" height="90" xmlns="http://www.w3.org/2000/svg">
+        <svg viewBox="0 0 740 120" width="740" height="120" xmlns="http://www.w3.org/2000/svg">
             <defs>
                 <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                     <path d="M 0 1 L 8 5 L 0 9 z" fill="#00D2FF"/>
@@ -1134,9 +1134,15 @@ def render_block_diagram_svg() -> None:
             <path d="M 580 48 L 580 100 L 130 100 L 130 64" fill="none" stroke="#64748B" stroke-width="1.8" stroke-dasharray="4,4" marker-end="url(#arrow)"/>
             <text x="330" y="94" fill="#64748B" font-family="JetBrains Mono" font-size="10">Negative Unity Feedback [ -1 ]</text>
         </svg>
-    </div>
     """
-    st.html(svg_code)
+    # Keep the trusted static SVG as an image so HTML sanitization cannot strip its drawing elements.
+    encoded = base64.b64encode(svg_code.strip().encode("utf-8")).decode("ascii")
+    st.html(
+        f'<div class="block-diagram-container">'
+        f'<img class="control-loop-image" src="data:image/svg+xml;base64,{encoded}" '
+        'alt="Unity negative feedback: reference, summing junction, PID controller, plant and output">'
+        '</div>'
+    )
 
 
 # ==============================================================================
@@ -1147,7 +1153,7 @@ def main():
     st.set_page_config(
         page_title="Control Systems & PID Simulator | SaaS Dashboard",
         layout="wide",
-        initial_sidebar_state="expanded"
+        initial_sidebar_state="auto"
     )
 
     # Inject Modern Dark Theme & Glassmorphism CSS
