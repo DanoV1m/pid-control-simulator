@@ -55,7 +55,7 @@ def compute_closed_loop_tf(
     if len(l_num) == 0:
         l_num = np.array([0.0])
     if len(l_den) == 0:
-        l_den = np.array([1.0])
+        raise ValueError('Invalid plant denominator')
 
     cl_num = l_num.copy()
     cl_den = np.trim_zeros(np.polyadd(l_den, l_num), trim="f")
@@ -177,3 +177,26 @@ def dc_gain(num: np.ndarray, den: np.ndarray) -> Optional[float]:
         return None
     value = float(num[-1] / den[-1])
     return value if np.isfinite(value) else None
+
+def root_locus_samples(num, den, gains):
+    """Roots of D(s)+k N(s) for nonnegative gain samples."""
+    result = []
+    for gain in gains:
+        if not np.isfinite(gain) or gain < 0:
+            raise ValueError("Gain must be finite and nonnegative")
+        characteristic = np.trim_zeros(np.polyadd(den, gain * np.asarray(num)), "f")
+        if not len(characteristic):
+            raise ValueError("Singular characteristic polynomial")
+        result.append(np.roots(characteristic))
+    return result
+
+
+def nyquist_samples(num, den, omega):
+    """Sample L(jw) and conjugate mirror; not a full Nyquist contour."""
+    omega = np.asarray(omega, dtype=float)
+    if np.any(omega <= 0) or not np.all(np.isfinite(omega)):
+        raise ValueError("Frequencies must be positive and finite")
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        response = np.polyval(num, 1j * omega) / np.polyval(den, 1j * omega)
+    response = np.where(np.isfinite(response), response, np.nan + 1j * np.nan)
+    return response, np.conjugate(response[::-1])

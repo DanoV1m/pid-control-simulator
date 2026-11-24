@@ -138,7 +138,7 @@ PRESETS = {
 # 2. CONTROL SYSTEMS MATHEMATICAL ENGINE
 # ==============================================================================
 
-from control_engine import parse_coefficients, poly_to_latex, compute_closed_loop_tf, calculate_step_metrics, calculate_frequency_margins, dc_gain
+from control_engine import parse_coefficients, poly_to_latex, compute_closed_loop_tf, calculate_step_metrics, calculate_frequency_margins, dc_gain, root_locus_samples, nyquist_samples
 
 def analyze_poles(poles: np.ndarray) -> List[Dict]:
     """Provides detailed mechanical & damping analysis for each pole in s-plane."""
@@ -1349,11 +1349,11 @@ def main():
         render_glass_metric_cards(ol_metrics, lang=current_lang)
 
     # --- INTERACTIVE ENGINEERING TABS ---
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         t_dict["tab_step"],
         t_dict["tab_pz"],
         t_dict["tab_bode"],
-        t_dict["tab_poles"]
+        t_dict["tab_poles"], "Root Locus", "Nyquist"
     ])
 
     with tab1:
@@ -1383,6 +1383,34 @@ def main():
         pole_data = analyze_poles(cl_poles)
         df_poles = pd.DataFrame(pole_data)
         st.dataframe(df_poles, use_container_width=True, hide_index=True)
+
+    with tab5:
+        st.caption("Roots of D(s) + k N(s), scaling the compensated open-loop transfer function. Sampled points, not connected branches.")
+        max_gain = st.number_input("Maximum gain multiplier", min_value=0.01, max_value=1000.0, value=10.0)
+        gains = np.concatenate(([0.0], np.geomspace(max_gain / 10000, max_gain, 250)))
+        try:
+            roots = root_locus_samples(l_num, l_den, gains)
+            points = [(float(k), float(p.real), float(p.imag)) for k, group in zip(gains, roots) for p in group]
+            df = pd.DataFrame(points, columns=["Gain", "Real", "Imaginary"])
+            if not df.empty:
+                import plotly.express as px
+                fig = px.scatter(df, x="Real", y="Imaginary", color="Gain", hover_data=["Gain"])
+                fig.add_vline(x=0, line_dash="dash")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No finite characteristic roots.")
+        except ValueError as exc:
+            st.warning(str(exc))
+
+    with tab6:
+        st.caption("Sampled positive and negative frequency response. Imaginary-axis poles and contour encirclements require separate analysis.")
+        positive, negative = nyquist_samples(l_num, l_den, np.logspace(-4, 4, 1500))
+        fig = go.Figure()
+        for values, label in [(positive, "Positive frequency"), (negative, "Negative frequency")]:
+            fig.add_scatter(x=values.real, y=values.imag, mode="lines", name=label, connectgaps=False)
+        fig.add_scatter(x=[-1], y=[0], mode="markers", name="Critical point")
+        fig.update_layout(xaxis_title="Real", yaxis_title="Imaginary", yaxis_scaleanchor="x")
+        st.plotly_chart(fig, use_container_width=True)
 
 
 if __name__ == "__main__":
