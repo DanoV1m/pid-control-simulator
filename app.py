@@ -138,7 +138,7 @@ PRESETS = {
 # 2. CONTROL SYSTEMS MATHEMATICAL ENGINE
 # ==============================================================================
 
-from control_engine import parse_coefficients, poly_to_latex, compute_closed_loop_tf, calculate_step_metrics, calculate_frequency_margins, dc_gain, root_locus_samples, nyquist_samples
+from control_engine import parse_coefficients, poly_to_latex, compute_closed_loop_tf, calculate_step_metrics, calculate_frequency_margins, dc_gain, root_locus_samples, nyquist_samples, simulate_saturated_pid
 
 def analyze_poles(poles: np.ndarray) -> List[Dict]:
     """Provides detailed mechanical & damping analysis for each pole in s-plane."""
@@ -1349,11 +1349,11 @@ def main():
         render_glass_metric_cards(ol_metrics, lang=current_lang)
 
     # --- INTERACTIVE ENGINEERING TABS ---
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         t_dict["tab_step"],
         t_dict["tab_pz"],
         t_dict["tab_bode"],
-        t_dict["tab_poles"], "Root Locus", "Nyquist"
+        t_dict["tab_poles"], "Root Locus", "Nyquist", "Saturation / Anti-windup"
     ])
 
     with tab1:
@@ -1411,6 +1411,22 @@ def main():
         fig.add_scatter(x=[-1], y=[0], mode="markers", name="Critical point")
         fig.update_layout(xaxis_title="Real", yaxis_title="Imaginary", yaxis_scaleanchor="x")
         st.plotly_chart(fig, use_container_width=True)
+
+    with tab7:
+        st.caption("Separate educational experiment: unit-gain first-order plant, not the selected arbitrary transfer function. Derivative on measurement; no hardware claim.")
+        tau = st.number_input("Plant time constant (s)", min_value=0.1, max_value=20.0, value=1.0)
+        actuator_limit = st.number_input("Actuator magnitude limit", min_value=0.1, max_value=10.0, value=0.8)
+        fig = go.Figure()
+        controls = go.Figure()
+        for aw, label in [(False, "Without anti-windup"), (True, "With anti-windup")]:
+            tt, yy, uu, ii = simulate_saturated_pid(kp,ki,kd,tau,actuator_limit,duration=max(0.1,t_final),anti_windup=aw)
+            fig.add_scatter(x=tt,y=yy,name=label)
+            controls.add_scatter(x=tt,y=ii,name=label)
+        fig.add_hline(y=1,line_dash="dash")
+        fig.update_layout(xaxis_title="Time (s)",yaxis_title="Plant output")
+        controls.update_layout(xaxis_title="Time (s)",yaxis_title="Integral state")
+        st.plotly_chart(fig,use_container_width=True)
+        st.plotly_chart(controls,use_container_width=True)
 
 
 if __name__ == "__main__":

@@ -200,3 +200,29 @@ def nyquist_samples(num, den, omega):
         response = np.polyval(num, 1j * omega) / np.polyval(den, 1j * omega)
     response = np.where(np.isfinite(response), response, np.nan + 1j * np.nan)
     return response, np.conjugate(response[::-1])
+
+def simulate_saturated_pid(kp, ki, kd, tau, limit, dt=0.01, duration=10.0, anti_windup=True, reference=1.0):
+    """Discrete PID on a unit-gain first-order plant; derivative on measurement.
+    Exact zero-order-hold plant update, rectangular integral, conditional integration.
+    """
+    if not np.all(np.isfinite([kp, ki, kd, tau, limit, dt, duration, reference])):
+        raise ValueError("All parameters must be finite")
+    if min(kp,ki,kd) < 0 or min(tau,limit,dt,duration) <= 0 or duration/dt > 200000:
+        raise ValueError("Invalid simulation parameters")
+    t = np.arange(int(np.floor(duration/dt))+1)*dt
+    y, u, integ = np.zeros_like(t), np.zeros_like(t), np.zeros_like(t)
+    decay = np.exp(-dt/tau)
+    integral = 0.0
+    previous = 0.0
+    for i in range(len(t)):
+        error = reference-y[i]
+        derivative = -(y[i]-previous)/dt
+        candidate = integral+error*dt
+        raw = kp*error+ki*candidate+kd*derivative
+        if not anti_windup or abs(raw)<=limit or (raw>limit and error<0) or (raw<-limit and error>0):
+            integral=candidate
+        u[i]=np.clip(kp*error+ki*integral+kd*derivative,-limit,limit)
+        integ[i]=integral
+        previous=y[i]
+        if i+1<len(t): y[i+1]=decay*y[i]+(1-decay)*u[i]
+    return t,y,u,integ
