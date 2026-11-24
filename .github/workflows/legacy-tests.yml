@@ -1,0 +1,67 @@
+name: Legacy compatibility tests
+on:
+  push:
+    branches: ['legacy/compatibility']
+permissions:
+  contents: read
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install application dependencies
+        run: |
+          python -m pip install --only-binary=:all: -r requirements.txt
+      - name: Check installed dependencies
+        run: |
+          python --version
+          python -m pip check
+          python -m pip freeze
+          python - <<'PY'
+          from importlib.metadata import version
+          from pathlib import Path
+          from packaging.requirements import Requirement
+          import sys
+          assert sys.version_info[:2] in ((3, 11), (3, 14))
+          pins = [Requirement(line) for line in Path('requirements.txt').read_text().splitlines() if line.strip() and not line.lstrip().startswith('#')]
+          active = [r for r in pins if r.marker is None or r.marker.evaluate()]
+          assert len(active) == 36, len(active)
+          for r in active:
+              assert version(r.name) in r.specifier, (r.name, version(r.name), str(r.specifier))
+          print('All 36 active dependency pins verified')
+          PY
+          python -c "import streamlit, numpy, scipy, pandas, plotly; print('All five direct dependencies imported successfully')"
+      - name: Numerical regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Compile application and engine
+        run: python -m py_compile app.py
+      - name: Streamlit interface regression tests
+        run: python -m unittest discover -s ui_tests -v
+      - name: Install browser test tooling
+        if: matrix.python-version == '3.14'
+        run: |
+          python -m pip install playwright==1.65.2 greenlet==3.5.6
+          python -m pip check
+          python -m playwright install --with-deps chromium
+      - name: Verify rendered HTML and SVG in Chromium
+        if: matrix.python-version == '3.14'
+        run: |
+          python -m streamlit run app.py --server.headless true --server.address 127.0.0.1 --server.port 8501 >/tmp/pid-streamlit.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true; cat /tmp/pid-streamlit.log' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8501/_stcore/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8501/_stcore/health
+          python -m unittest discover -s browser_tests -v
