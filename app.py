@@ -374,7 +374,7 @@ html, body, [class*="css"] {
    ------------------------------------------------------------------------- */
 .metrics-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
     gap: 14px;
     margin: 16px 0 24px 0;
 }
@@ -400,6 +400,8 @@ html, body, [class*="css"] {
 
 .metric-header {
     display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 8px;
@@ -553,6 +555,15 @@ html, body, [class*="css"] {
     padding: 16px 20px;
     margin: 12px 0;
     text-align: center;
+    overflow-x: auto;
+}
+.block-diagram-container svg {
+    display: block;
+    width: 100%;
+    min-width: 480px;
+    max-width: 740px;
+    height: auto;
+    margin: 0 auto;
 }
 </style>
 """
@@ -1071,7 +1082,7 @@ def render_glass_metric_cards(metrics: Dict[str, Optional[float]], lang: str = "
         {ess_html}
     </div>
     """
-    st.markdown(full_html, unsafe_allow_html=True)
+    st.html(full_html)
 
 
 def render_block_diagram_svg() -> None:
@@ -1125,7 +1136,7 @@ def render_block_diagram_svg() -> None:
         </svg>
     </div>
     """
-    st.markdown(svg_code, unsafe_allow_html=True)
+    st.html(svg_code)
 
 
 # ==============================================================================
@@ -1140,11 +1151,11 @@ def main():
     )
 
     # Inject Modern Dark Theme & Glassmorphism CSS
-    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+    st.html(CUSTOM_CSS)
 
     # --- SIDEBAR: CONTROL DESK ---
     with st.sidebar:
-        st.markdown(
+        st.html(
             """
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
                 <div style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, rgba(0, 210, 255, 0.25) 0%, rgba(59, 130, 246, 0.25) 100%); border: 1px solid rgba(0, 210, 255, 0.45); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #00D2FF; font-family: 'JetBrains Mono', monospace;">CS</div>
@@ -1153,9 +1164,7 @@ def main():
                     <div style="font-size: 0.7rem; color: #00D2FF; font-family: 'JetBrains Mono';">AUTONOMOUS LTI ENGINE</div>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """)
 
         # Language Selector
         lang_choice = st.radio(
@@ -1170,7 +1179,7 @@ def main():
         st.divider()
 
         # Section 1: Plant Dynamics G(s)
-        st.markdown(f'<div class="sidebar-section-badge">{t_dict["section_plant"]}</div>', unsafe_allow_html=True)
+        st.html(f'<div class="sidebar-section-badge">{t_dict["section_plant"]}</div>')
         preset_options = list(PRESETS[current_lang].keys())
         selected_preset = st.selectbox(t_dict["preset_label"], preset_options)
         default_num, default_den = PRESETS[current_lang][selected_preset]
@@ -1189,7 +1198,7 @@ def main():
         st.divider()
 
         # Section 2: PID Controller Tuning
-        st.markdown(f'<div class="sidebar-section-badge">{t_dict["section_pid"]}</div>', unsafe_allow_html=True)
+        st.html(f'<div class="sidebar-section-badge">{t_dict["section_pid"]}</div>')
         
         # Controller Mode Presets
         pid_mode = st.radio(
@@ -1221,12 +1230,12 @@ def main():
         st.divider()
 
         # Section 3: Simulation Parameters
-        st.markdown(f'<div class="sidebar-section-badge">{t_dict["section_sim"]}</div>', unsafe_allow_html=True)
+        st.html(f'<div class="sidebar-section-badge">{t_dict["section_sim"]}</div>')
         t_final = st.slider(t_dict["t_final_label"], min_value=2.0, max_value=60.0, value=12.0, step=1.0)
         show_ol_curve = st.checkbox(t_dict["show_ol_label"], value=True)
 
     # --- TOP HERO BANNER ---
-    st.markdown(
+    st.html(
         f"""
         <div class="hero-container">
             <div class="hero-badge">● {t_dict['badge']}</div>
@@ -1234,9 +1243,7 @@ def main():
             <p class="hero-subtitle">{t_dict['subtitle']}</p>
             <div class="hero-telemetry-pill">● {t_dict['status_engine']}</div>
         </div>
-        """,
-        unsafe_allow_html=True
-    )
+        """)
 
     # System Architecture Block Diagram Expander
     with st.expander(t_dict["diagram_expander"], expanded=False):
@@ -1296,7 +1303,7 @@ def main():
     # --- MATHEMATICAL TRANSFER FUNCTION CONTAINERS ---
     col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1:
-        st.markdown(
+        st.html(
             f"""
             <div class="math-card">
                 <div class="math-card-header">
@@ -1304,13 +1311,11 @@ def main():
                     <span class="math-card-badge">Order: {plant_order}</span>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """)
         st.latex(rf"G(s) = \frac{{{poly_to_latex(num)}}}{{{poly_to_latex(den)}}}")
 
     with col_m2:
-        st.markdown(
+        st.html(
             f"""
             <div class="math-card">
                 <div class="math-card-header">
@@ -1318,9 +1323,7 @@ def main():
                     <span class="math-card-badge">Mode: {pid_mode}</span>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """)
         if abs(ki) < 1e-12:
             st.latex(rf"C(s) = {kp:g} + {kd:g}s")
         else:
@@ -1328,7 +1331,7 @@ def main():
 
     with col_m3:
         cl_order = len(cl_den) - 1
-        st.markdown(
+        st.html(
             f"""
             <div class="math-card">
                 <div class="math-card-header">
@@ -1336,12 +1339,10 @@ def main():
                     <span class="math-card-badge">Order: {cl_order}</span>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """)
         st.latex(rf"T(s) = \frac{{{poly_to_latex(cl_num)}}}{{{poly_to_latex(cl_den)}}}")
 
-    st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
+    st.html("<div style='margin-top: 14px;'></div>")
 
     # --- GLASSMORPHISM METRICS DASHBOARD ---
     st.markdown(f"### {t_dict['metrics_title']}")
