@@ -7,3 +7,6 @@ The new tabs show sampled roots of the compensated loop characteristic polynomia
 
 ## Actuator saturation
 A separate first-order plant experiment compares conditional integration with ordinary integral action, using exact zero-order-hold plant propagation. It is not a nonlinear simulation of the selected transfer function. Tests check saturation, analytic propagation and integral windup.
+
+## Frequency margins
+Gain and phase crossings now use logarithmic-frequency interpolation on 10^-3 to 10^3 rad/s, including phase crossings at odd multiples of 180 degrees. Reported margins are the signed candidates closest to zero; they do not establish closed-loop stability. Tangencies and crossings outside the grid may be missed. Missing values mean no detected crossing, not infinite margin. Analytical first- and third-order tests cover reference frequencies and margins.

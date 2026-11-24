@@ -134,42 +134,34 @@ def calculate_step_metrics(
 
 
 def calculate_frequency_margins(l_sys: signal.TransferFunction) -> Dict[str, Optional[float]]:
-    """Calculates Gain Margin (GM) and Phase Margin (PM) from frequency response."""
+    """Estimate the closest-to-zero signed margins at sampled crossings.
+    Log-frequency interpolation; tangencies and out-of-band crossings are not guaranteed.
+    A missing crossing is reported as None, not infinite stability margin.
+    """
+    empty = {"pm": None, "w_gc": None, "gm": None, "w_pc": None}
     try:
-        w = np.logspace(-3, 3, 1200)
+        logw = np.linspace(-3, 3, 2401)
+        w = 10**logw
         _, mag, phase = signal.bode(l_sys, w=w)
-
-        # Gain Crossover Frequency (where magnitude crosses 0 dB)
-        idx_gc = np.where(np.diff(np.sign(mag)))[0]
-        pm, w_gc = None, None
-        if len(idx_gc) > 0:
-            i = idx_gc[0]
-            w_gc = float(w[i])
-            phase_at_gc = float(phase[i])
-            pm = 180.0 + phase_at_gc
-            while pm > 180.0:
-                pm -= 360.0
-            while pm < -180.0:
-                pm += 360.0
-
-        # Phase Crossover Frequency (where phase crosses -180 degrees)
-        phase_shifted = phase - (-180.0)
-        idx_pc = np.where(np.diff(np.sign(phase_shifted)))[0]
-        gm, w_pc = None, None
-        if len(idx_pc) > 0:
-            i = idx_pc[0]
-            w_pc = float(w[i])
-            mag_at_pc = float(mag[i])
-            gm = -mag_at_pc
-
-        return {
-            "pm": pm,
-            "w_gc": w_gc,
-            "gm": gm,
-            "w_pc": w_pc,
-        }
-    except Exception:
-        return {"pm": None, "w_gc": None, "gm": None, "w_pc": None}
+        def crossings(values, target, other):
+            for i in range(len(values)-1):
+                a,b = values[i]-target,values[i+1]-target
+                if not np.all(np.isfinite([a,b,other[i],other[i+1]])) or a==b:
+                    continue
+                if a*b<=0:
+                    f = -a/(b-a)
+                    yield float(10**(logw[i]+f*(logw[i+1]-logw[i]))), float(other[i]+f*(other[i+1]-other[i]))
+        pm_candidates = [(float((p+360)%360-180), freq) for freq,p in crossings(mag,0,phase)]
+        finite_phase=phase[np.isfinite(phase)]
+        gm_candidates=[]
+        if len(finite_phase):
+            for k in range(int(np.floor((min(finite_phase)+180)/360)),int(np.ceil((max(finite_phase)+180)/360))+1):
+                gm_candidates.extend([(-m,freq) for freq,m in crossings(phase,-180+360*k,mag)])
+        pm,w_gc=min(pm_candidates,key=lambda x:abs(x[0])) if pm_candidates else (None,None)
+        gm,w_pc=min(gm_candidates,key=lambda x:abs(x[0])) if gm_candidates else (None,None)
+        return {"pm":pm,"w_gc":w_gc,"gm":gm,"w_pc":w_pc}
+    except (ValueError, ArithmeticError):
+        return empty
 
 
 def dc_gain(num: np.ndarray, den: np.ndarray) -> Optional[float]:
