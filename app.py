@@ -1,3 +1,4 @@
+import base64
 import streamlit as st
 import numpy as np
 from scipy import signal
@@ -138,170 +139,7 @@ PRESETS = {
 # 2. CONTROL SYSTEMS MATHEMATICAL ENGINE
 # ==============================================================================
 
-def parse_coefficients(coeff_str: str) -> Optional[np.ndarray]:
-    """Converts a comma-separated string of coefficients into a normalized NumPy array."""
-    try:
-        coeffs = [float(x.strip()) for x in coeff_str.split(",") if x.strip() != ""]
-        if not coeffs:
-            return None
-        arr = np.trim_zeros(np.array(coeffs, dtype=float), trim="f")
-        return arr if len(arr) > 0 else None
-    except ValueError:
-        return None
-
-
-def poly_to_latex(coeffs: np.ndarray) -> str:
-    """Converts polynomial coefficients into clean LaTeX notation."""
-    terms = []
-    degree = len(coeffs) - 1
-    for i, c in enumerate(coeffs):
-        power = degree - i
-        if abs(c) < 1e-12:
-            continue
-
-        sign = " + " if c > 0 and terms else (" - " if c < 0 and terms else ("-" if c < 0 else ""))
-        abs_c = abs(c)
-        coeff_str = "" if (abs(abs_c - 1.0) < 1e-9 and power > 0) else f"{abs_c:g}"
-        s_str = "" if power == 0 else ("s" if power == 1 else f"s^{{{power}}}")
-        terms.append(f"{sign}{coeff_str}{s_str}")
-
-    return "".join(terms) if terms else "0"
-
-
-def compute_closed_loop_tf(
-    num: np.ndarray, den: np.ndarray, kp: float, ki: float, kd: float
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Computes open-loop compensated L(s) = C(s)G(s) and closed-loop unity feedback T(s) = L(s) / (1 + L(s)).
-    Handles pure PD / P when Ki is zero to avoid zero pole/zero cancellation at origin.
-    """
-    if abs(ki) < 1e-12:
-        c_num = np.array([kd, kp], dtype=float)
-        c_den = np.array([1.0], dtype=float)
-    else:
-        c_num = np.array([kd, kp, ki], dtype=float)
-        c_den = np.array([1.0, 0.0], dtype=float)
-
-    l_num = np.trim_zeros(np.polymul(c_num, num), trim="f")
-    l_den = np.trim_zeros(np.polymul(c_den, den), trim="f")
-
-    if len(l_num) == 0:
-        l_num = np.array([0.0])
-    if len(l_den) == 0:
-        l_den = np.array([1.0])
-
-    cl_num = l_num.copy()
-    cl_den = np.trim_zeros(np.polyadd(l_den, l_num), trim="f")
-    if len(cl_den) == 0:
-        cl_den = np.array([1.0])
-
-    return cl_num, cl_den, l_num, l_den
-
-
-def calculate_step_metrics(
-    t: np.ndarray, y: np.ndarray, poles: np.ndarray, setpoint: float = 1.0
-) -> Dict[str, Optional[float]]:
-    """Calculates comprehensive step response performance metrics."""
-    is_stable = bool(np.all(np.real(poles) < 1e-7))
-
-    if not is_stable or len(y) == 0:
-        return {
-            "stable": False,
-            "rise_time": None,
-            "settling_time": None,
-            "overshoot": None,
-            "peak_val": None,
-            "peak_time": None,
-            "steady_state": None,
-            "ess": None,
-            "t_10": None,
-            "t_90": None,
-        }
-
-    y_ss = float(y[-1])
-    ess = abs(setpoint - y_ss)
-
-    y_max = float(np.max(y))
-    idx_max = int(np.argmax(y))
-    t_peak = float(t[idx_max]) if idx_max < len(t) else None
-
-    if abs(y_ss) > 1e-6 and y_ss > 0:
-        overshoot = max(0.0, ((y_max - y_ss) / abs(y_ss)) * 100.0)
-    else:
-        overshoot = 0.0
-
-    rise_time = None
-    t_10 = None
-    t_90 = None
-    if y_ss > 1e-6:
-        idx_10 = np.where(y >= 0.1 * y_ss)[0]
-        idx_90 = np.where(y >= 0.9 * y_ss)[0]
-        if len(idx_10) > 0 and len(idx_90) > 0 and idx_90[0] >= idx_10[0]:
-            t_10 = float(t[idx_10[0]])
-            t_90 = float(t[idx_90[0]])
-            rise_time = float(t_90 - t_10)
-
-    settling_time = None
-    if abs(y_ss) > 1e-6:
-        tolerance = 0.02 * abs(y_ss)
-        outside_band = np.where(np.abs(y - y_ss) > tolerance)[0]
-        if len(outside_band) == 0:
-            settling_time = 0.0
-        elif outside_band[-1] < len(t) - 1:
-            settling_time = float(t[outside_band[-1] + 1])
-
-    return {
-        "stable": True,
-        "rise_time": rise_time,
-        "settling_time": settling_time,
-        "overshoot": overshoot,
-        "peak_val": y_max,
-        "peak_time": t_peak,
-        "steady_state": y_ss,
-        "ess": ess,
-        "t_10": t_10,
-        "t_90": t_90,
-    }
-
-
-def calculate_frequency_margins(l_sys: signal.TransferFunction) -> Dict[str, Optional[float]]:
-    """Calculates Gain Margin (GM) and Phase Margin (PM) from frequency response."""
-    try:
-        w = np.logspace(-3, 3, 1200)
-        _, mag, phase = signal.bode(l_sys, w=w)
-
-        # Gain Crossover Frequency (where magnitude crosses 0 dB)
-        idx_gc = np.where(np.diff(np.sign(mag)))[0]
-        pm, w_gc = None, None
-        if len(idx_gc) > 0:
-            i = idx_gc[0]
-            w_gc = float(w[i])
-            phase_at_gc = float(phase[i])
-            pm = 180.0 + phase_at_gc
-            while pm > 180.0:
-                pm -= 360.0
-            while pm < -180.0:
-                pm += 360.0
-
-        # Phase Crossover Frequency (where phase crosses -180 degrees)
-        phase_shifted = phase - (-180.0)
-        idx_pc = np.where(np.diff(np.sign(phase_shifted)))[0]
-        gm, w_pc = None, None
-        if len(idx_pc) > 0:
-            i = idx_pc[0]
-            w_pc = float(w[i])
-            mag_at_pc = float(mag[i])
-            gm = -mag_at_pc
-
-        return {
-            "pm": pm,
-            "w_gc": w_gc,
-            "gm": gm,
-            "w_pc": w_pc,
-        }
-    except Exception:
-        return {"pm": None, "w_gc": None, "gm": None, "w_pc": None}
-
+from control_engine import parse_coefficients, poly_to_latex, compute_closed_loop_tf, calculate_step_metrics, calculate_frequency_margins, dc_gain, root_locus_samples, nyquist_samples, simulate_saturated_pid
 
 def analyze_poles(poles: np.ndarray) -> List[Dict]:
     """Provides detailed mechanical & damping analysis for each pole in s-plane."""
@@ -537,7 +375,7 @@ html, body, [class*="css"] {
    ------------------------------------------------------------------------- */
 .metrics-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
     gap: 14px;
     margin: 16px 0 24px 0;
 }
@@ -563,6 +401,8 @@ html, body, [class*="css"] {
 
 .metric-header {
     display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 8px;
@@ -716,6 +556,15 @@ html, body, [class*="css"] {
     padding: 16px 20px;
     margin: 12px 0;
     text-align: center;
+    overflow-x: auto;
+}
+.block-diagram-container .control-loop-image {
+    display: block;
+    width: 100%;
+    min-width: 480px;
+    max-width: 740px;
+    height: auto;
+    margin: 0 auto;
 }
 </style>
 """
@@ -1234,14 +1083,13 @@ def render_glass_metric_cards(metrics: Dict[str, Optional[float]], lang: str = "
         {ess_html}
     </div>
     """
-    st.markdown(full_html, unsafe_allow_html=True)
+    st.html(full_html)
 
 
 def render_block_diagram_svg() -> None:
     """Renders a clean SVG control loop block diagram."""
     svg_code = """
-    <div class="block-diagram-container">
-        <svg viewBox="0 0 740 120" width="100%" height="90" xmlns="http://www.w3.org/2000/svg">
+        <svg viewBox="0 0 740 120" width="740" height="120" xmlns="http://www.w3.org/2000/svg">
             <defs>
                 <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                     <path d="M 0 1 L 8 5 L 0 9 z" fill="#00D2FF"/>
@@ -1286,9 +1134,15 @@ def render_block_diagram_svg() -> None:
             <path d="M 580 48 L 580 100 L 130 100 L 130 64" fill="none" stroke="#64748B" stroke-width="1.8" stroke-dasharray="4,4" marker-end="url(#arrow)"/>
             <text x="330" y="94" fill="#64748B" font-family="JetBrains Mono" font-size="10">Negative Unity Feedback [ -1 ]</text>
         </svg>
-    </div>
     """
-    st.markdown(svg_code, unsafe_allow_html=True)
+    # Keep the trusted static SVG as an image so HTML sanitization cannot strip its drawing elements.
+    encoded = base64.b64encode(svg_code.strip().encode("utf-8")).decode("ascii")
+    st.html(
+        f'<div class="block-diagram-container">'
+        f'<img class="control-loop-image" src="data:image/svg+xml;base64,{encoded}" '
+        'alt="Unity negative feedback: reference, summing junction, PID controller, plant and output">'
+        '</div>'
+    )
 
 
 # ==============================================================================
@@ -1299,15 +1153,15 @@ def main():
     st.set_page_config(
         page_title="Control Systems & PID Simulator | SaaS Dashboard",
         layout="wide",
-        initial_sidebar_state="expanded"
+        initial_sidebar_state="auto"
     )
 
     # Inject Modern Dark Theme & Glassmorphism CSS
-    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+    st.html(CUSTOM_CSS)
 
     # --- SIDEBAR: CONTROL DESK ---
     with st.sidebar:
-        st.markdown(
+        st.html(
             """
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
                 <div style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, rgba(0, 210, 255, 0.25) 0%, rgba(59, 130, 246, 0.25) 100%); border: 1px solid rgba(0, 210, 255, 0.45); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #00D2FF; font-family: 'JetBrains Mono', monospace;">CS</div>
@@ -1316,9 +1170,7 @@ def main():
                     <div style="font-size: 0.7rem; color: #00D2FF; font-family: 'JetBrains Mono';">AUTONOMOUS LTI ENGINE</div>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """)
 
         # Language Selector
         lang_choice = st.radio(
@@ -1333,7 +1185,7 @@ def main():
         st.divider()
 
         # Section 1: Plant Dynamics G(s)
-        st.markdown(f'<div class="sidebar-section-badge">{t_dict["section_plant"]}</div>', unsafe_allow_html=True)
+        st.html(f'<div class="sidebar-section-badge">{t_dict["section_plant"]}</div>')
         preset_options = list(PRESETS[current_lang].keys())
         selected_preset = st.selectbox(t_dict["preset_label"], preset_options)
         default_num, default_den = PRESETS[current_lang][selected_preset]
@@ -1352,7 +1204,7 @@ def main():
         st.divider()
 
         # Section 2: PID Controller Tuning
-        st.markdown(f'<div class="sidebar-section-badge">{t_dict["section_pid"]}</div>', unsafe_allow_html=True)
+        st.html(f'<div class="sidebar-section-badge">{t_dict["section_pid"]}</div>')
         
         # Controller Mode Presets
         pid_mode = st.radio(
@@ -1384,12 +1236,12 @@ def main():
         st.divider()
 
         # Section 3: Simulation Parameters
-        st.markdown(f'<div class="sidebar-section-badge">{t_dict["section_sim"]}</div>', unsafe_allow_html=True)
+        st.html(f'<div class="sidebar-section-badge">{t_dict["section_sim"]}</div>')
         t_final = st.slider(t_dict["t_final_label"], min_value=2.0, max_value=60.0, value=12.0, step=1.0)
         show_ol_curve = st.checkbox(t_dict["show_ol_label"], value=True)
 
     # --- TOP HERO BANNER ---
-    st.markdown(
+    st.html(
         f"""
         <div class="hero-container">
             <div class="hero-badge">● {t_dict['badge']}</div>
@@ -1397,9 +1249,7 @@ def main():
             <p class="hero-subtitle">{t_dict['subtitle']}</p>
             <div class="hero-telemetry-pill">● {t_dict['status_engine']}</div>
         </div>
-        """,
-        unsafe_allow_html=True
-    )
+        """)
 
     # System Architecture Block Diagram Expander
     with st.expander(t_dict["diagram_expander"], expanded=False):
@@ -1413,27 +1263,43 @@ def main():
         st.error(t_dict["err_invalid_coeffs"])
         st.stop()
 
-    if len(num) > len(den):
+    if not np.any(den) or len(num) > len(den):
         st.error(t_dict["err_improper"])
         st.stop()
 
+    if pid_mode in ['PD (Ki = 0)', 'P-Only']:
+        ki = 0.0
+    if pid_mode in ['PI (Kd = 0)', 'P-Only']:
+        kd = 0.0
+
     # Compute Systems
     ol_sys = signal.TransferFunction(num, den)
-    cl_num, cl_den, l_num, l_den = compute_closed_loop_tf(num, den, kp, ki, kd)
-    cl_sys = signal.TransferFunction(cl_num, cl_den)
-    l_sys = signal.TransferFunction(l_num, l_den)
-
-    t_axis = np.linspace(0, t_final, 1400)
-    t_ol, y_ol = signal.step(ol_sys, T=t_axis)
-    t_cl, y_cl = signal.step(cl_sys, T=t_axis)
+    try:
+        cl_num, cl_den, l_num, l_den = compute_closed_loop_tf(num, den, kp, ki, kd)
+        if len(cl_num) > len(cl_den):
+            raise ValueError('Improper closed-loop transfer function')
+    except ValueError as exc:
+        st.error(str(exc))
+        st.stop()
+    try:
+        cl_sys = signal.TransferFunction(cl_num, cl_den)
+        l_sys = signal.TransferFunction(l_num, l_den)
+        t_axis = np.linspace(0, t_final, 1400)
+        t_ol, y_ol = signal.step(ol_sys, T=t_axis)
+        t_cl, y_cl = signal.step(cl_sys, T=t_axis)
+        if not np.all(np.isfinite(y_ol)) or not np.all(np.isfinite(y_cl)):
+            raise ValueError("Response exceeds numerical range")
+    except (ValueError, ArithmeticError, np.linalg.LinAlgError) as exc:
+        st.error(f"Simulation unavailable: {exc}")
+        st.stop()
 
     ol_poles = np.roots(den)
     ol_zeros = np.roots(num) if len(num) > 1 else np.array([])
     cl_poles = np.roots(cl_den)
     cl_zeros = np.roots(cl_num) if len(cl_num) > 1 else np.array([])
 
-    ol_metrics = calculate_step_metrics(t_ol, y_ol, ol_poles)
-    cl_metrics = calculate_step_metrics(t_cl, y_cl, cl_poles)
+    ol_metrics = calculate_step_metrics(t_ol, y_ol, ol_poles, final_value=dc_gain(num, den))
+    cl_metrics = calculate_step_metrics(t_cl, y_cl, cl_poles, final_value=dc_gain(cl_num, cl_den))
     margins = calculate_frequency_margins(l_sys)
 
     # System Characteristics
@@ -1443,7 +1309,7 @@ def main():
     # --- MATHEMATICAL TRANSFER FUNCTION CONTAINERS ---
     col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1:
-        st.markdown(
+        st.html(
             f"""
             <div class="math-card">
                 <div class="math-card-header">
@@ -1451,13 +1317,11 @@ def main():
                     <span class="math-card-badge">Order: {plant_order}</span>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """)
         st.latex(rf"G(s) = \frac{{{poly_to_latex(num)}}}{{{poly_to_latex(den)}}}")
 
     with col_m2:
-        st.markdown(
+        st.html(
             f"""
             <div class="math-card">
                 <div class="math-card-header">
@@ -1465,9 +1329,7 @@ def main():
                     <span class="math-card-badge">Mode: {pid_mode}</span>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """)
         if abs(ki) < 1e-12:
             st.latex(rf"C(s) = {kp:g} + {kd:g}s")
         else:
@@ -1475,7 +1337,7 @@ def main():
 
     with col_m3:
         cl_order = len(cl_den) - 1
-        st.markdown(
+        st.html(
             f"""
             <div class="math-card">
                 <div class="math-card-header">
@@ -1483,12 +1345,10 @@ def main():
                     <span class="math-card-badge">Order: {cl_order}</span>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """)
         st.latex(rf"T(s) = \frac{{{poly_to_latex(cl_num)}}}{{{poly_to_latex(cl_den)}}}")
 
-    st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
+    st.html("<div style='margin-top: 14px;'></div>")
 
     # --- GLASSMORPHISM METRICS DASHBOARD ---
     st.markdown(f"### {t_dict['metrics_title']}")
@@ -1501,11 +1361,11 @@ def main():
         render_glass_metric_cards(ol_metrics, lang=current_lang)
 
     # --- INTERACTIVE ENGINEERING TABS ---
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         t_dict["tab_step"],
         t_dict["tab_pz"],
         t_dict["tab_bode"],
-        t_dict["tab_poles"]
+        t_dict["tab_poles"], "Root Locus", "Nyquist", "Saturation / Anti-windup"
     ])
 
     with tab1:
@@ -1535,6 +1395,50 @@ def main():
         pole_data = analyze_poles(cl_poles)
         df_poles = pd.DataFrame(pole_data)
         st.dataframe(df_poles, use_container_width=True, hide_index=True)
+
+    with tab5:
+        st.caption("Roots of D(s) + k N(s), scaling the compensated open-loop transfer function. Sampled points, not connected branches.")
+        max_gain = st.number_input("Maximum gain multiplier", min_value=0.01, max_value=1000.0, value=10.0)
+        gains = np.concatenate(([0.0], np.geomspace(max_gain / 10000, max_gain, 250)))
+        try:
+            roots = root_locus_samples(l_num, l_den, gains)
+            points = [(float(k), float(p.real), float(p.imag)) for k, group in zip(gains, roots) for p in group]
+            df = pd.DataFrame(points, columns=["Gain", "Real", "Imaginary"])
+            if not df.empty:
+                import plotly.express as px
+                fig = px.scatter(df, x="Real", y="Imaginary", color="Gain", hover_data=["Gain"])
+                fig.add_vline(x=0, line_dash="dash")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No finite characteristic roots.")
+        except ValueError as exc:
+            st.warning(str(exc))
+
+    with tab6:
+        st.caption("Sampled positive and negative frequency response. Imaginary-axis poles and contour encirclements require separate analysis.")
+        positive, negative = nyquist_samples(l_num, l_den, np.logspace(-4, 4, 1500))
+        fig = go.Figure()
+        for values, label in [(positive, "Positive frequency"), (negative, "Negative frequency")]:
+            fig.add_scatter(x=values.real, y=values.imag, mode="lines", name=label, connectgaps=False)
+        fig.add_scatter(x=[-1], y=[0], mode="markers", name="Critical point")
+        fig.update_layout(xaxis_title="Real", yaxis_title="Imaginary", yaxis_scaleanchor="x")
+        st.plotly_chart(fig, use_container_width=True)
+
+    with tab7:
+        st.caption("Separate educational experiment: unit-gain first-order plant, not the selected arbitrary transfer function. Derivative on measurement; no hardware claim.")
+        tau = st.number_input("Plant time constant (s)", min_value=0.1, max_value=20.0, value=1.0)
+        actuator_limit = st.number_input("Actuator magnitude limit", min_value=0.1, max_value=10.0, value=0.8)
+        fig = go.Figure()
+        controls = go.Figure()
+        for aw, label in [(False, "Without anti-windup"), (True, "With anti-windup")]:
+            tt, yy, uu, ii = simulate_saturated_pid(kp,ki,kd,tau,actuator_limit,duration=max(0.1,t_final),anti_windup=aw)
+            fig.add_scatter(x=tt,y=yy,name=label)
+            controls.add_scatter(x=tt,y=ii,name=label)
+        fig.add_hline(y=1,line_dash="dash")
+        fig.update_layout(xaxis_title="Time (s)",yaxis_title="Plant output")
+        controls.update_layout(xaxis_title="Time (s)",yaxis_title="Integral state")
+        st.plotly_chart(fig,use_container_width=True)
+        st.plotly_chart(controls,use_container_width=True)
 
 
 if __name__ == "__main__":
